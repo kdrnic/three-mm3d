@@ -1,0 +1,201 @@
+<html>
+	<head>
+		<script src="three.js"></script>
+		<script src="jdataview.js"></script>
+		<script src="../mm3d.js"></script>
+		<script src="TrackballControls.js"></script>
+		<script>
+function Start()
+{
+	scene = new THREE.Scene();
+	camera = new THREE.PerspectiveCamera(75, 640/480, 0.1, 1000);
+	renderer = new THREE.WebGLRenderer();
+	renderer.setSize(640, 480);
+	document.body.appendChild(renderer.domElement);
+	clock = new THREE.Clock();
+	
+	boxMaterial = new THREE.MeshBasicMaterial({color: "blue"});
+	boxGeometry = new THREE.BoxGeometry(0.25, 0.25, 0.25);
+	box = new THREE.Mesh(boxGeometry, boxMaterial);
+	scene.add(box);
+	
+	model = new MM3DModel;
+	model.OnLoad = function()
+	{
+		geometry = model.GetGeometry();
+		geometry.computeFaceNormals();
+		geometry.computeBoundingSphere();
+		texture = THREE.ImageUtils.loadTexture("ronaldo.png");
+		texture.needsUpdate = true;
+		morphMaterial = new THREE.MeshBasicMaterial({map: texture, morphTargets: true});		
+		morphMesh = new THREE.MorphAnimMesh(geometry, morphMaterial);
+		morphMesh.parseAnimations();
+		scene.add(morphMesh);
+		morphMesh.playAnimation(morphMesh.geometry.firstAnimation, 60);		
+		document.body.appendChild(document.createElement("br"));
+		morphLabel = document.body.appendChild(document.createElement("label"));
+		morphLabel.setAttribute("for", "morphAnimationSelector");
+		morphLabel.innerHTML = "Select morph animation:";
+		morphAnimationSelector = document.createElement("select");
+		morphAnimationSelector.setAttribute("id", "morphAnimationSelector");
+		document.body.appendChild(morphAnimationSelector);
+		for(var a in morphMesh.geometry.animations)
+		{
+			var option = document.createElement("option");
+			option.setAttribute("value", a);
+			option.innerHTML = a;
+			morphAnimationSelector.appendChild(option);
+		}
+		morphAnimationSelector.onchange = function()
+		{
+			morphMesh.playAnimation(this.value, 60);
+		}
+		
+		skinMaterial = new THREE.MeshBasicMaterial({map: texture, skinning: true});
+		skinMesh = new THREE.SkinnedMesh(geometry, skinMaterial);
+		scene.add(skinMesh);
+		skinMesh.position.copy(morphMesh.position);
+		skinMesh.position.add(new THREE.Vector3(0, 0, geometry.boundingSphere.radius));
+		_skinAnimations = model.GetSkeletalAnimations();
+		for(var i = 0; i < _skinAnimations.length; i++) THREE.AnimationHandler.add(_skinAnimations[i]);
+		skinAnimations = [];
+		for(var i = 0; i < _skinAnimations.length; i++) skinAnimations[i] = new THREE.Animation(skinMesh, _skinAnimations[i].name, THREE.AnimationHandler.CATMULLROM);
+		skinAnimations[0].play();
+		skinBoxes = [];
+		for(var i = 0; i < skinMesh.skeleton.bones.length; i++)
+		{
+			var b = new THREE.Mesh(boxGeometry, boxMaterial);
+			b.applyMatrix(skinMesh.skeleton.bones[i].matrix);
+			b.matrix.copy(skinMesh.skeleton.bones[i].matrix);
+			skinBoxes[i] = b;
+			
+			var option = document.createElement("option");
+			option.innerHTML = skinMesh.skeleton.bones[i].name;
+			option.setAttribute("value", skinMesh.skeleton.bones[i].name);
+			boneSelector.appendChild(option);
+		}
+		for(var i = 0; i < skinMesh.skeleton.bones.length; i++)
+		{
+			if(skinMesh.skeleton.bones[i].parent instanceof THREE.SkinnedMesh) skinMesh.add(skinBoxes[i]);
+			else
+			{
+				for(var j = 0; j < skinMesh.skeleton.bones.length; j++)
+				{
+					if(skinMesh.skeleton.bones[i].parent == skinMesh.skeleton.bones[j])
+					{
+						skinBoxes[j].add(skinBoxes[i]);
+					}
+				}
+			}
+		}
+		skinLabel = document.body.appendChild(document.createElement("label"));
+		skinLabel.setAttribute("for", "animationSelector");
+		skinLabel.innerHTML = "Select skeletal animation:";
+		skinAnimationSelector = document.createElement("select");
+		skinAnimationSelector.setAttribute("id", "skinAnimationSelector");
+		document.body.appendChild(skinAnimationSelector);
+		for(var i = 0; i < _skinAnimations.length; i++)
+		{
+			var option = document.createElement("option");
+			option.setAttribute("value", _skinAnimations[i].name);
+			option.innerHTML = _skinAnimations[i].name;
+			option.animationIndex = i;
+			skinAnimationSelector.appendChild(option);
+		}
+		skinAnimationSelector.onchange = function()
+		{
+			for(var i = 0; i < skinAnimations.length; i++)
+			{
+				if(i == this.options[this.selectedIndex].animationIndex) skinAnimations[i].play();
+				else skinAnimations[i].stop();
+			}
+		}
+		
+		camera.position.copy(morphMesh.position);
+		camera.position.add(new THREE.Vector3(geometry.boundingSphere.radius * 2, geometry.boundingSphere.radius * 2, geometry.boundingSphere.radius * 2));
+		camera.lookAt(morphMesh.position);
+	}
+	model.Load("ronaldo.mm3d");
+	
+	var things = ["ak47.mm3d", "cap.mm3d", "sword.mm3d"];
+	document.body.appendChild(document.createElement("br"));
+	thingsLabel = document.body.appendChild(document.createElement("label"));
+	thingsLabel.setAttribute("for", "thingsSelector");
+	thingsLabel.innerHTML = "Add object ";
+	thingsSelector = document.createElement("select");
+	thingsSelector.setAttribute("id", "thingsSelector");
+	document.body.appendChild(thingsSelector);
+	for(var i = 0; i < things.length; i++)
+	{
+		var a = things[i];
+		var option = document.createElement("option");
+		option.setAttribute("value", a);
+		option.innerHTML = a;
+		thingsSelector.appendChild(option);
+	}
+	bonesLabel = document.body.appendChild(document.createElement("label"));
+	bonesLabel.setAttribute("for", "boneSelector");
+	bonesLabel.innerHTML = " to bone ";
+	boneSelector = document.createElement("select");
+	boneSelector.setAttribute("id", "boneSelector");
+	document.body.appendChild(boneSelector);
+	thingButton = document.createElement("input");
+	thingButton.setAttribute("value", "Add object!");
+	thingButton.setAttribute("type", "button");
+	thingButton.onclick = function()
+	{
+		var m = new MM3DModel();
+		m.OnLoad = function()
+		{
+			var g = this.GetGeometry();
+			var a = this.textures[0];
+			a = a.substr(a.lastIndexOf("\\") + 1);
+			var t = THREE.ImageUtils.loadTexture(a);
+			t.needsUpdate = true;
+			var mat = new THREE.MeshBasicMaterial({map: t});
+			var mes = new THREE.Mesh(g, mat);
+			scene.add(mes);
+			for(var i = 0; i < skinMesh.skeleton.bones.length; i++)
+			{
+				if(document.getElementById("boneSelector").value == skinMesh.skeleton.bones[i].name) skinBoxes[i].add(mes);
+			}
+		}
+		m.Load(document.getElementById("thingsSelector").value);
+	}
+	document.body.appendChild(thingButton);
+	
+	controls = new THREE.TrackballControls(camera, renderer.domElement);
+	controls.rotateSpeed = 1.0;
+	controls.zoomSpeed = 1.2;
+	controls.panSpeed = 0.8;
+	controls.noZoom = false;
+	controls.noPan = false;
+	controls.staticMoving = true;
+	controls.dynamicDampingFactor = 0.3;
+	controls.keys = [65, 83, 68];
+	
+	Render();
+}
+
+function Render()
+{
+	var delta = clock.getDelta();
+	requestAnimationFrame(Render);
+	if(typeof morphMesh != "undefined") morphMesh.updateAnimation(delta * 1000);
+	THREE.AnimationHandler.update(delta);
+	if(typeof skinBoxes != "undefined")
+	{
+		for(var i = 0; i < skinBoxes.length; i++)
+		{
+			skinBoxes[i].position.copy(skinMesh.skeleton.bones[i].position);
+			skinBoxes[i].rotation.copy(skinMesh.skeleton.bones[i].rotation);
+		}
+	}
+	controls.update();
+	renderer.render(scene, camera);
+}
+		</script>
+	</head>
+	<body onload="Start()">
+	</body>
+</html>
