@@ -432,7 +432,7 @@ MM3DModel.prototype.GetGeometry = function()
 			var jointIndex = -1;
 			for(var j = 0; j < this.jointVertices.length; j++)
 			{
-				if(this.jointVertices[i].vertexIndex == i) jointIndex = this.jointVertices[i].jointIndex;
+				if(this.jointVertices[j].vertexIndex == i) jointIndex = this.jointVertices[j].jointIndex;
 			}
 			if(jointIndex > 0)
 			{
