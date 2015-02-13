@@ -468,7 +468,7 @@ MM3DModel.prototype.GetSkeletalAnimations = function()
 		{
 			animation.hierarchy[j] =
 			{
-				parent: this.joints[i].parentIndex,
+				parent: this.joints[j].parentIndex,
 				keys: []
 			};
 		}
@@ -501,12 +501,12 @@ MM3DModel.prototype.GetSkeletalAnimations = function()
 				
 				var key = {};
 				
-				key.pos = __key.translation ? __key.translation : [0, 0, 0];
+				key.pos = __key.translation ? __key.translation.slice() : [0, 0, 0];
 				key.pos[0] += this.joints[k].translation[0];
 				key.pos[1] += this.joints[k].translation[1];
 				key.pos[2] += this.joints[k].translation[2];
 				
-				var rotArray = __key.rotation ? __key.rotation : [0, 0, 0];
+				var rotArray = __key.rotation ? __key.rotation.slice() : [0, 0, 0];
 				rotArray[0] += this.joints[k].rotation[0];
 				rotArray[1] += this.joints[k].rotation[1];
 				rotArray[2] += this.joints[k].rotation[2];
@@ -528,10 +528,15 @@ MM3DModel.prototype.GetSkeletalAnimations = function()
 		{
 			if(animation.hierarchy[j].keys.length <= 0)
 			{
+				var rotEuler = new THREE.Euler();
+				rotEuler.fromArray(this.joints[j].rotation);
+				var rotQuaternion = new THREE.Quaternion();
+				rotQuaternion.setFromEuler(rotEuler);
+				
 				animation.hierarchy[j].keys.push(
 				{
-					pos: geometry.bones[j].pos,
-					rot: geometry.bones[j].rotq,
+					pos: this.joints[j].translation.slice(),
+					rot: [rotQuaternion.x, rotQuaternion.y, rotQuaternion.z, rotQuaternion.w],
 					scl: [1, 1, 1],
 					time: 0.001				// Must not be 0, but also must be greater than all key times
 				});
