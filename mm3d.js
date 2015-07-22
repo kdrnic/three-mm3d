@@ -450,6 +450,8 @@ MM3DModel.prototype.GetGeometry = function()
 	return geometry;
 }
 
+// TODO: refactor to either make extensive use of Array.prototype.forEach or exchange i,j,k for descriptive identifiers
+// In reality this whole method needs refactoring.
 MM3DModel.prototype.GetSkeletalAnimations = function()
 {
 	var animations = [];
@@ -505,6 +507,7 @@ MM3DModel.prototype.GetSkeletalAnimations = function()
 				key.pos[0] += this.joints[k].translation[0];
 				key.pos[1] += this.joints[k].translation[1];
 				key.pos[2] += this.joints[k].translation[2];
+				if(!__key.translation) delete key.pos;
 				
 				var rotArray = __key.rotation ? __key.rotation.slice() : [0, 0, 0];
 				rotArray[0] += this.joints[k].rotation[0];
@@ -515,6 +518,7 @@ MM3DModel.prototype.GetSkeletalAnimations = function()
 				var rotQuaternion = new THREE.Quaternion();
 				rotQuaternion.setFromEuler(rotEuler);
 				key.rot = [rotQuaternion.x, rotQuaternion.y, rotQuaternion.z, rotQuaternion.w];
+				if(!__key.rotation) delete key.rot;
 				
 				key.scl = [1, 1, 1];
 				
@@ -526,25 +530,111 @@ MM3DModel.prototype.GetSkeletalAnimations = function()
 		
 		for(var j = 0; j < this.joints.length; j++)
 		{
-			if(animation.hierarchy[j].keys.length <= 0)
+			if(animation.hierarchy[j].keys.length <= 0) animation.hierarchy[j].keys.push(
+			{
+				scl: [1, 1, 1],
+				time: 0.001				// Must not be 0, but also must be greater than all key times
+			});
+			
+			var posCount = 0, rotCount = 0;
+			for(var k = 0; k < animation.hierarchy[j].keys.length; k++)
+			{
+				if(animation.hierarchy[j].keys[k].hasOwnProperty("pos")) posCount++;
+				if(animation.hierarchy[j].keys[k].hasOwnProperty("rot")) rotCount++;
+			}
+			if(posCount == 0)
+			{
+				animation.hierarchy[j].keys[0].pos = this.joints[j].translation.slice();
+			}
+			if(rotCount == 0)
 			{
 				var rotEuler = new THREE.Euler();
 				rotEuler.fromArray(this.joints[j].rotation);
 				var rotQuaternion = new THREE.Quaternion();
 				rotQuaternion.setFromEuler(rotEuler);
 				
-				animation.hierarchy[j].keys.push(
-				{
-					pos: this.joints[j].translation.slice(),
-					rot: [rotQuaternion.x, rotQuaternion.y, rotQuaternion.z, rotQuaternion.w],
-					scl: [1, 1, 1],
-					time: 0.001				// Must not be 0, but also must be greater than all key times
-				});
+				animation.hierarchy[j].keys[0].rot = [rotQuaternion.x, rotQuaternion.y, rotQuaternion.z, rotQuaternion.w];
 			}
 		}
 		
 		animations.push(animation);
 	}
 	
+	// See https://github.com/mrdoob/three.js/issues/6065
+	function PatchKeys(anims)
+	{
+		for(var animIndex = 0; animIndex < anims.length; animIndex++)
+		{
+			var bones = anims[animIndex].hierarchy;
+			for(var boneIndex = 0; boneIndex < bones.length; boneIndex++)
+			{
+				var keys = bones[boneIndex].keys;
+				for(var keyIndex = 0; keyIndex < keys.length; keyIndex++)
+				{
+					var currKey = keys[keyIndex];
+					if(!currKey.hasOwnProperty("pos"))
+					{
+						var prevKey = keys.slice(0, keyIndex).reverse().find(function(e){ return e.hasOwnProperty("pos"); });
+						var nextKey = keys.slice(keyIndex).find(function(e){ return e.hasOwnProperty("pos"); });
+						
+						if((typeof(prevKey) != "undefined") && (typeof(nextKey) != "undefined"))
+						{
+							currKey.pos = [];
+							for(var i = 0; i < 3; i++)
+							{
+								currKey.pos[i] = prevKey.pos[i] + (nextKey.pos[i] - prevKey.pos[i]) * ((nextKey.time - currKey.time) * (nextKey.time - prevKey.time));
+							}
+						}
+						else currKey.pos = prevKey ? prevKey.pos.slice() : nextKey.pos.slice();
+					}
+					
+					if(!currKey.hasOwnProperty("rot"))
+					{
+						var prevKey = keys.slice(0, keyIndex).reverse().find(function(e){ return e.hasOwnProperty("rot"); });
+						var nextKey = keys.slice(keyIndex).find(function(e){ return e.hasOwnProperty("rot"); });
+						
+						if((typeof(prevKey) != "undefined") && (typeof(nextKey) != "undefined"))
+						{
+							var prevQuat = new THREE.Quaternion().fromArray(prevKey.rot);
+							var nextQuat = new THREE.Quaternion().fromArray(nextKey.rot);
+							var currQuat = new THREE.Quaternion();
+							// Note THREE.Quaternion.slerp != THREE.Quaternion.prototype.slerp
+							THREE.Quaternion.slerp(prevQuat, nextQuat, currQuat, ((nextKey.time - currKey.time) * (nextKey.time - prevKey.time)));
+							currKey.rot = [currQuat.x, currQuat.y, currQuat.z, currQuat.w];
+							console.log("rot patch by slerp", nextKey.time - prevKey.time);
+						}
+						else currKey.rot = prevKey ? prevKey.rot.slice() : nextKey.rot.slice();
+					}
+				}
+			}
+		}
+	}
+	
+	PatchKeys(animations);
+	
 	return animations;
+}
+
+// Array.find polyfill
+if (!Array.prototype.find) {
+  Array.prototype.find = function(predicate) {
+    if (this == null) {
+      throw new TypeError('Array.prototype.find called on null or undefined');
+    }
+    if (typeof predicate !== 'function') {
+      throw new TypeError('predicate must be a function');
+    }
+    var list = Object(this);
+    var length = list.length >>> 0;
+    var thisArg = arguments[1];
+    var value;
+
+    for (var i = 0; i < length; i++) {
+      value = list[i];
+      if (predicate.call(thisArg, value, i, list)) {
+        return value;
+      }
+    }
+    return undefined;
+  };
 }
