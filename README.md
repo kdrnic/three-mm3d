@@ -3,7 +3,7 @@ three-mm3d
 
 A Misfit Model 3D format (.mm3d) loader for three.js. This is not based on .mm3d to .json converters. This code actually loads and parses the binary file itself.
 
-~~NOTE: As of the time of writing this note, I found that a peculiarity of three.js animation keys compromises usage of the skeletal animation features. An issue has been opened by me, mrdoob/three.js#6065 and I am expecting that this is solved soon. Meanwhile, it is not recommend for skeletal animation features to be depended upon. Please rely on morph target animations only, as those aren't affected and are working correctly.~~ Skeletal animation features now can be depended upon due to patching keyframes during model loading. mrdoob/three.js#6065 still remains.
+~~NOTE: As of the time of writing this note, I found that a peculiarity of three.js animation keys compromises usage of the skeletal animation features. An issue has been opened by me, https://github.com/mrdoob/three.js/issues/6065 and I am expecting that this is solved soon. Meanwhile, it is not recommend for skeletal animation features to be depended upon. Please rely on morph target animations only, as those aren't affected and are working correctly.~~ Skeletal animation features now can be depended upon due to patching keyframes during model loading. https://github.com/mrdoob/three.js/issues/6065 still remains.
 
 See live demo at https://d61c20519de147ce3055249fdf53f3af0b22de1d.googledrive.com/host/0B9scOMN0JFaXVjgxYzllaVljdGc/test.html
 
